@@ -61,12 +61,14 @@ app.use('/api/auth/', authLimiter);
 
 // Middleware
 app.use(express.json());
-app.use(express.static('public'));
 
-// Serve home.html as the default root page
+// Serve home.html as the default root page (must be before static middleware)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'home.html'));
 });
+
+// Serve static files (after route handlers to prevent index.html from being served at root)
+app.use(express.static('public'));
 
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
