@@ -283,6 +283,32 @@ async function updateTrade(tradeId, updates) {
   }
 }
 
+async function getAllActiveTrades() {
+  try {
+    // Get all active trades (pending, accepted, completed) in a single scan
+    // This is more efficient than N+1 queries per user
+    const command = new ScanCommand({
+      TableName: TRADES_TABLE,
+      FilterExpression: 'status IN (:pending, :accepted, :completed)',
+      ExpressionAttributeValues: {
+        ':pending': 'pending',
+        ':accepted': 'accepted',
+        ':completed': 'completed'
+      }
+    });
+    const response = await docClient.send(command);
+    return response.Items || [];
+  } catch (error) {
+    // If table doesn't exist yet, return empty array
+    if (error.name === 'ResourceNotFoundException') {
+      console.warn(`Trades table does not exist. Table: ${TRADES_TABLE}`);
+      return [];
+    }
+    console.error('Error getting all active trades:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   getUser,
   getUserByEmail,
@@ -299,5 +325,6 @@ module.exports = {
   getTradesByUser,
   createTrade,
   updateTrade,
+  getAllActiveTrades,
 };
 
