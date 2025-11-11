@@ -1,13 +1,14 @@
-# Book Swap
+# The Printernet Bookshop
 
-A minimal book swapping platform where users can upload 1-5 books they're offering to trade and browse other users' books in a feed-like interface.
+A minimal book swapping app where readers can upload 1-5 books, browse other readers' books in a feed-like interface called The Stacks, and offer trades to one another. Once a trade is accepted, readers can mail their books to one another using USPS Media Mail Rates.
 
 ## Features
 
-- **Main Feed**: Browse all available books from all users in a beautiful grid layout
+- **The Stacks**: Browse all available books from all users in a simple grid layout
 - **User Profiles**: Click on any user to view all their available books
 - **Book Management**: Upload and manage 1-5 books you're offering to trade
-- **Trade Proposals**: Initiate trade proposals between users
+- **Trade Proposals and Tracking**: Initiate trade proposals between users and track trade progress
+- **Trade Provenance**: Every book in The Printernet Bookshop retains its trade history so readers can see where each book has been
 - **Minimal Design**: Clean, modern aesthetic inspired by Teenage Engineering and Apple design
 
 ## Getting Started
