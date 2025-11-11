@@ -273,21 +273,28 @@ app.get('/api/books', async (req, res) => {
   try {
     const allBooks = await db.getAllBooks();
     
-    // Get user info for each book and normalize field names
-    // Show both current and previous books (previous books will have "traded" badge)
-    // Handle books that might not have status field (legacy books default to 'current')
-    const booksWithUsers = await Promise.all(
-      allBooks
-        .map(async (book) => {
-          const user = await db.getUser(book.userId);
-          return {
-            ...book,
-            id: book.bookId, // Map bookId to id for frontend compatibility
-            userName: user ? user.username : 'Unknown',
-            status: book.status || 'current' // Ensure status is set, default to 'current'
-          };
-        })
-    );
+    // Batch fetch all unique users in a single operation (fixes N+1 problem)
+    const uniqueUserIds = [...new Set(allBooks.map(book => book.userId))];
+    const users = await db.getUsersBatch(uniqueUserIds);
+    
+    // Create a map for O(1) lookup
+    const userMap = new Map();
+    users.forEach((user, index) => {
+      if (user) {
+        userMap.set(uniqueUserIds[index], user);
+      }
+    });
+    
+    // Map books with user info (no additional DB calls needed)
+    const booksWithUsers = allBooks.map(book => {
+      const user = userMap.get(book.userId);
+      return {
+        ...book,
+        id: book.bookId, // Map bookId to id for frontend compatibility
+        userName: user ? user.username : 'Unknown',
+        status: book.status || 'current' // Ensure status is set, default to 'current'
+      };
+    });
     
     res.json(booksWithUsers);
   } catch (error) {
@@ -303,8 +310,10 @@ app.get('/api/books/debug', async (req, res) => {
     const booksWithStatus = allBooks.map(book => ({
       bookId: book.bookId,
       title: book.title,
+      author: book.author,
       status: book.status || 'MISSING',
-      userId: book.userId
+      userId: book.userId,
+      imageUrl: book.imageUrl // Include imageUrl for debugging
     }));
     res.json({
       total: allBooks.length,
@@ -316,6 +325,33 @@ app.get('/api/books/debug', async (req, res) => {
   } catch (error) {
     console.error('Error getting debug books:', error);
     res.status(500).json({ error: 'Failed to get debug books' });
+  }
+});
+
+// Fix ACL permissions for a specific book's image
+app.post('/api/books/:bookId/fix-image-acl', authenticateToken, async (req, res) => {
+  try {
+    const bookId = req.params.bookId;
+    const book = await db.getBook(bookId);
+    
+    if (!book) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+    
+    // Verify user owns the book
+    if (req.user.userId !== book.userId) {
+      return res.status(403).json({ error: 'Forbidden: You can only fix images for your own books' });
+    }
+    
+    if (!book.imageUrl || book.imageUrl.startsWith('data:')) {
+      return res.status(400).json({ error: 'Book does not have an S3 image URL' });
+    }
+    
+    await s3.fixImageAcl(book.imageUrl);
+    res.json({ success: true, message: 'Image ACL fixed successfully' });
+  } catch (error) {
+    console.error('Error fixing image ACL:', error);
+    res.status(500).json({ error: 'Failed to fix image ACL', details: error.message });
   }
 });
 
