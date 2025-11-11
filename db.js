@@ -325,6 +325,32 @@ async function getTradesByUser(userId) {
   }
 }
 
+// Check if a pending trade already exists with the same parameters
+async function findExistingPendingTrade(fromUserId, toUserId, fromBookId, toBookId) {
+  try {
+    // Get all trades from the sender
+    const sentTrades = await getTradesByFromUser(fromUserId);
+    
+    // Check if there's a pending trade with matching parameters
+    const existingTrade = sentTrades.find(trade => 
+      trade.status === 'pending' &&
+      trade.fromUserId === fromUserId &&
+      trade.toUserId === toUserId &&
+      trade.fromBookId === fromBookId &&
+      trade.toBookId === toBookId
+    );
+    
+    return existingTrade || null;
+  } catch (error) {
+    console.error('Error finding existing pending trade:', error);
+    // If table doesn't exist, return null (allow creation)
+    if (error.name === 'ResourceNotFoundException') {
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function createTrade(trade) {
   try {
     const command = new PutCommand({
@@ -413,6 +439,7 @@ module.exports = {
   getTradesByFromUser,
   getTradesByToUser,
   getTradesByUser,
+  findExistingPendingTrade,
   createTrade,
   updateTrade,
   getAllActiveTrades,
