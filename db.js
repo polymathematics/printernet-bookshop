@@ -1,5 +1,6 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand, ScanCommand, DeleteCommand, BatchGetCommand } = require('@aws-sdk/lib-dynamodb');
+const { userCache } = require('./cache');
 
 const client = new DynamoDBClient({
   region: process.env.AWS_REGION || 'us-east-2',
@@ -18,14 +19,89 @@ const TRADES_TABLE = process.env.DYNAMODB_TRADES_TABLE || 'trades';
 // User functions
 async function getUser(userId) {
   try {
+    // Check cache first
+    const cached = userCache.get(`user:${userId}`);
+    if (cached) {
+      return cached;
+    }
+    
     const command = new GetCommand({
       TableName: USERS_TABLE,
       Key: { userId },
     });
     const response = await docClient.send(command);
+    
+    // Cache the result if found
+    if (response.Item) {
+      userCache.set(`user:${userId}`, response.Item);
+    }
+    
     return response.Item;
   } catch (error) {
     console.error('Error getting user:', error);
+    throw error;
+  }
+}
+
+// Batch get multiple users at once (fixes N+1 problem)
+async function getUsersBatch(userIds) {
+  try {
+    if (!userIds || userIds.length === 0) {
+      return [];
+    }
+    
+    // Remove duplicates
+    const uniqueUserIds = [...new Set(userIds)];
+    
+    // Check cache for each user
+    const cachedUsers = {};
+    const uncachedIds = [];
+    
+    uniqueUserIds.forEach(userId => {
+      const cached = userCache.get(`user:${userId}`);
+      if (cached) {
+        cachedUsers[userId] = cached;
+      } else {
+        uncachedIds.push(userId);
+      }
+    });
+    
+    // If all users are cached, return them
+    if (uncachedIds.length === 0) {
+      return uniqueUserIds.map(id => cachedUsers[id] || null);
+    }
+    
+    // Batch fetch uncached users from DynamoDB
+    // DynamoDB BatchGetItem can handle up to 100 items
+    const batchSize = 100;
+    const allUsers = { ...cachedUsers };
+    
+    for (let i = 0; i < uncachedIds.length; i += batchSize) {
+      const batch = uncachedIds.slice(i, i + batchSize);
+      
+      const command = new BatchGetCommand({
+        RequestItems: {
+          [USERS_TABLE]: {
+            Keys: batch.map(userId => ({ userId }))
+          }
+        }
+      });
+      
+      const response = await docClient.send(command);
+      
+      // Cache and add to results
+      if (response.Responses && response.Responses[USERS_TABLE]) {
+        response.Responses[USERS_TABLE].forEach(user => {
+          allUsers[user.userId] = user;
+          userCache.set(`user:${user.userId}`, user);
+        });
+      }
+    }
+    
+    // Return users in the same order as requested userIds
+    return uniqueUserIds.map(id => allUsers[id] || null);
+  } catch (error) {
+    console.error('Error getting users batch:', error);
     throw error;
   }
 }
@@ -56,6 +132,10 @@ async function createUser(user) {
       Item: user,
     });
     await docClient.send(command);
+    
+    // Cache the newly created user
+    userCache.set(`user:${user.userId}`, user);
+    
     return user;
   } catch (error) {
     console.error('Error creating user:', error);
@@ -80,6 +160,11 @@ async function updateUser(userId, updates) {
       Item: updatedUser,
     });
     await docClient.send(command);
+    
+    // Invalidate cache and update with new data
+    userCache.delete(`user:${userId}`);
+    userCache.set(`user:${userId}`, updatedUser);
+    
     return updatedUser;
   } catch (error) {
     console.error('Error updating user:', error);
@@ -311,6 +396,7 @@ async function getAllActiveTrades() {
 
 module.exports = {
   getUser,
+  getUsersBatch,
   getUserByEmail,
   createUser,
   updateUser,
