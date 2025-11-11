@@ -1,5 +1,5 @@
-// API Base URL
-const API_BASE = 'http://localhost:3000/api';
+// API Base URL - relative URL works in both dev and production
+const API_BASE = '/api';
 
 // State management
 let currentUserId = localStorage.getItem('userId');
@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function initializeApp() {
-    // Check if user exists
+    // Check if user is logged in
     if (currentUserId && currentUserName) {
         showFeed();
         loadFeed();
@@ -25,7 +25,8 @@ function initializeApp() {
             localStorage.removeItem('playLoginSound');
         }
     } else {
-        showUserPrompt();
+        // Redirect to login if not authenticated
+        window.location.href = 'login.html';
     }
 
     // Event listeners
@@ -50,17 +51,6 @@ function playLoginSound() {
 }
 
 function setupEventListeners() {
-    // User prompt
-    const startBtn = document.getElementById('startBtn');
-    const userNameInput = document.getElementById('userNameInput');
-    
-    if (startBtn) {
-        startBtn.addEventListener('click', handleStart);
-        userNameInput?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') handleStart();
-        });
-    }
-
     // Navigation
     const myBooksBtn = document.getElementById('myBooksBtn');
     const backToFeedBtn = document.getElementById('backToFeedBtn');
@@ -92,66 +82,20 @@ function setupEventListeners() {
     });
 }
 
-async function handleStart() {
-    const userNameInput = document.getElementById('userNameInput');
-    const name = userNameInput?.value.trim();
-    
-    if (!name) {
-        alert('Please enter your name');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/users`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ name, userId: currentUserId })
-        });
-
-        const user = await response.json();
-        currentUserId = user.id;
-        currentUserName = user.name;
-        
-        localStorage.setItem('userId', currentUserId);
-        localStorage.setItem('userName', currentUserName);
-
-        showFeed();
-        loadFeed();
-    } catch (error) {
-        console.error('Error creating user:', error);
-        alert('Failed to create user. Please try again.');
-    }
-}
-
-function showUserPrompt() {
-    const prompt = document.getElementById('userPrompt');
-    const feed = document.getElementById('feedContainer');
-    const userView = document.getElementById('userViewContainer');
-    
-    if (prompt) prompt.style.display = 'block';
-    if (feed) feed.style.display = 'none';
-    if (userView) userView.style.display = 'none';
-}
 
 function showFeed() {
-    const prompt = document.getElementById('userPrompt');
     const feed = document.getElementById('feedContainer');
     const userView = document.getElementById('userViewContainer');
     
-    if (prompt) prompt.style.display = 'none';
     if (feed) feed.style.display = 'block';
     if (userView) userView.style.display = 'none';
 }
 
 function showUserView(userId, userName) {
-    const prompt = document.getElementById('userPrompt');
     const feed = document.getElementById('feedContainer');
     const userView = document.getElementById('userViewContainer');
     const viewedUserName = document.getElementById('viewedUserName');
     
-    if (prompt) prompt.style.display = 'none';
     if (feed) feed.style.display = 'none';
     if (userView) userView.style.display = 'block';
     if (viewedUserName) {

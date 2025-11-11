@@ -60,6 +60,11 @@ app.use('/api/auth/', authLimiter);
 app.use(express.json());
 app.use(express.static('public'));
 
+// Serve home.html as the default root page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'home.html'));
+});
+
 // Create uploads directory if it doesn't exist
 const uploadsDir = path.join(__dirname, 'public', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
