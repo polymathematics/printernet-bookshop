@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Swap - The Stacks</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-subheader">
+                <h1>Printernet</h1>
+                <h2>The Stacks: Available books in the Bookshop</h2>
+            </div>
+          
+            <div class="header-actions">
+                <button id="logoutBtn" class="btn-secondary">Logout</button>
+                <button id="myBooksBtn" class="btn-secondary">My Books</button>
+            </div>
+        </header>
+
+        <main>
+            <div id="userPrompt" class="user-prompt">
+                <p>Enter your name to get started:</p>
+                <input type="text" id="userNameInput" placeholder="Your name" maxlength="50">
+                <button id="startBtn" class="btn-primary">Start</button>
+            </div>
+
+            <div id="feedContainer" class="feed-container" style="display: none;">
+                <div id="booksGrid" class="books-grid">
+                    <!-- Books will be loaded here -->
+                </div>
+            </div>
+
+            <div id="userViewContainer" class="user-view-container" style="display: none;">
+                <div class="user-header">
+                    <button id="backToFeedBtn" class="btn-back">← Back to the Stacks</button>
+                    <h2 id="viewedUserName"></h2>
+                </div>
+                <div id="userBooksGrid" class="books-grid">
+                    <!-- User's books will be loaded here -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Trade Proposal Modal -->
+    <div id="tradeModal" class="modal" style="display: none;">
+        <div class="modal-content trade-modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>Offer Trade</h2>
+            <div id="tradeBooksDisplay" class="trade-books-display">
+                <div class="trade-book-card">
+                    <h3>Their Book</h3>
+                    <div id="theirBookDisplay" class="trade-book-content"></div>
+                </div>
+                <div class="trade-arrow">⇄</div>
+                <div class="trade-book-card">
+                    <h3>Your Book</h3>
+                    <div id="yourBookDisplay" class="trade-book-content"></div>
+                    <select id="myBookSelect" class="book-select"></select>
+                </div>
+            </div>
+            <label for="tradeMessage">Message (optional):</label>
+            <textarea id="tradeMessage" placeholder="Add a message..."></textarea>
+            <div id="tradeSuccessMessage" class="trade-success" style="display: none;">
+                Trade offer sent successfully!
+            </div>
+            <button id="submitTradeBtn" class="btn-primary">Offer Trade</button>
+        </div>
+    </div>
+
+    <!-- Fixed bottom left image -->
+    <div class="fixed-bottom-image">
+        <img src="images/printernetShop1.png" alt="Printernet Bookstore">
+    </div>
+
+    <script src="frontend.js"></script>
+</body>
+</html>
+
