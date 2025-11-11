@@ -1,5 +1,5 @@
-// API Base URL
-const API_BASE = 'http://localhost:3000/api';
+// API Base URL - relative URL works in both dev and production
+const API_BASE = '/api';
 
 // State management
 let currentUserId = localStorage.getItem('userId');
