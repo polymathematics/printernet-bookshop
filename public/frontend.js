@@ -478,6 +478,17 @@ async function submitTrade(toBookId, toUserId) {
             }, 1500);
         } else {
             const errorData = await response.json().catch(() => ({}));
+            
+            // Handle duplicate trade offer (409 Conflict)
+            if (response.status === 409) {
+                const errorMessage = errorData.error || 'A pending trade offer already exists for these books';
+                alert(errorMessage);
+                // Close modal and reload feed to show the existing pending trade
+                closeTradeModal();
+                loadFeed();
+                return;
+            }
+            
             const errorMessage = errorData.error || errorData.details || 'Failed to send trade proposal';
             throw new Error(errorMessage);
         }

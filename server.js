@@ -631,6 +631,21 @@ app.post('/api/trades', async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
+    // Check if a pending trade already exists with the same parameters
+    const existingTrade = await db.findExistingPendingTrade(
+      fromUserId,
+      toUserId,
+      fromBookId,
+      toBookId
+    );
+    
+    if (existingTrade) {
+      return res.status(409).json({ 
+        error: 'A pending trade offer already exists for these books',
+        existingTradeId: existingTrade.tradeId
+      });
+    }
+    
     const tradeId = uuidv4();
     const proposal = {
       tradeId: tradeId,
