@@ -625,6 +625,30 @@ app.post('/api/trades', async (req, res) => {
   }
 });
 
+// Get all active trades (for batch loading - fixes N+1 query problem)
+app.get('/api/trades/all', async (req, res) => {
+  try {
+    // Get all active trades in a single query (replaces N+1 queries per user)
+    const allTrades = await db.getAllActiveTrades();
+    
+    // Map tradeId to id for frontend compatibility
+    const tradesWithId = allTrades.map(trade => ({
+      ...trade,
+      id: trade.tradeId
+    }));
+    
+    res.json(tradesWithId);
+  } catch (error) {
+    console.error('Error getting all trades:', error);
+    // If table doesn't exist yet, return empty array instead of error
+    if (error.name === 'ResourceNotFoundException') {
+      console.warn('Trades table does not exist yet, returning empty array');
+      return res.json([]);
+    }
+    res.status(500).json({ error: 'Failed to get trades' });
+  }
+});
+
 // Get trade proposals for a user
 app.get('/api/users/:userId/trades', async (req, res) => {
   try {

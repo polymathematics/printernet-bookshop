@@ -147,15 +147,11 @@ async function loadFeed() {
         }
         
         // Check ALL books for trades in progress (both books have been mailed)
-        // We need to check all users' trades to see if any book is in a trade in progress
+        // Use single batch endpoint instead of N+1 queries per user
         try {
-            // Get all trades by checking each book's owner's trades
-            const bookOwners = [...new Set(allBooks.map(book => book.userId))];
-            const allTradesPromises = bookOwners.map(userId => 
-                fetch(`${API_BASE}/users/${userId}/trades`).then(r => r.ok ? r.json() : [])
-            );
-            const allTradesArrays = await Promise.all(allTradesPromises);
-            const allTrades = allTradesArrays.flat();
+            // Get all active trades in a single API call (fixes N+1 query problem)
+            const allTradesResponse = await fetch(`${API_BASE}/trades/all`);
+            const allTrades = allTradesResponse.ok ? await allTradesResponse.json() : [];
             
             // Mark books that are part of trades in progress
             allBooks = allBooks.map(book => {
