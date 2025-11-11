@@ -11,39 +11,20 @@ A minimal book swapping app where readers can upload 1-5 books, browse other rea
 - **Trade Provenance**: Every book in The Printernet Bookshop retains its trade history so readers can see where each book has been
 - **Minimal Design**: Clean, modern aesthetic inspired by Teenage Engineering and Apple design
 
-## Getting Started
-
-### Installation
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Start the server:
-```bash
-npm start
-```
-
-3. Open your browser and navigate to:
-```
-http://localhost:3000
-```
-
 ## Usage
 
-1. **Getting Started**: Enter your name when prompted
-2. **Add Books**: Click "My Books" or "Add Book" to manage your collection (max 5 books)
-3. **Browse Feed**: View all available books from all users
+1. **Getting Started**: Sign up and create a username. I recommend using an alias or pseudo-alias.
+2. **Add Books to your shelf**: Click "My Books" and "Add Book" to manage your collection (max 5 books at a time)
+3. **Browse The Stacks**: View all available books in the bookshop from all users
 4. **View User Books**: Click on a user's name to see all their books
-5. **Propose Trade**: Click "Trade" on any book to initiate a trade proposal
+5. **Propose trade and make your first trade**: Click "Trade" on any book to initiate a trade proposal
 
 ## Tech Stack
 
 - **Backend**: Node.js with Express
 - **Frontend**: Vanilla JavaScript, HTML, CSS
 - **File Upload**: Multer for handling book cover images
-- **Storage**: In-memory storage (can be upgraded to a database)
+- **Storage**: AWS DynamoDB
 
 ## Project Structure
 
