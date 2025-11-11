@@ -372,9 +372,13 @@ async function getAllActiveTrades() {
   try {
     // Get all active trades (pending, accepted, completed) in a single scan
     // This is more efficient than N+1 queries per user
+    // Note: 'status' is a reserved keyword in DynamoDB, so we use ExpressionAttributeNames
     const command = new ScanCommand({
       TableName: TRADES_TABLE,
-      FilterExpression: 'status IN (:pending, :accepted, :completed)',
+      FilterExpression: '#status IN (:pending, :accepted, :completed)',
+      ExpressionAttributeNames: {
+        '#status': 'status' // Alias for reserved keyword
+      },
       ExpressionAttributeValues: {
         ':pending': 'pending',
         ':accepted': 'accepted',
