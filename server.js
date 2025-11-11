@@ -14,6 +14,9 @@ const s3 = require('./s3');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy - required for rate limiting to work correctly behind reverse proxy (Railway, etc.)
+app.set('trust proxy', true);
+
 // CORS Configuration
 // Allow localhost in development, restrict to your domain in production
 const allowedOrigins = process.env.NODE_ENV === 'production'
