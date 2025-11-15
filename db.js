@@ -332,12 +332,15 @@ async function findExistingPendingTrade(fromUserId, toUserId, fromBookId, toBook
     const sentTrades = await getTradesByFromUser(fromUserId);
     
     // Check if there's a pending trade with matching parameters
+    // For "any of my books" (fromBookId is null), check if there's already a pending trade
+    // with null fromBookId for the same toBookId
     const existingTrade = sentTrades.find(trade => 
       trade.status === 'pending' &&
       trade.fromUserId === fromUserId &&
       trade.toUserId === toUserId &&
-      trade.fromBookId === fromBookId &&
-      trade.toBookId === toBookId
+      trade.toBookId === toBookId &&
+      // Match if both are null, or if both have the same book ID
+      ((!trade.fromBookId && !fromBookId) || (trade.fromBookId === fromBookId))
     );
     
     return existingTrade || null;

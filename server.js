@@ -629,7 +629,8 @@ app.post('/api/trades', async (req, res) => {
   try {
     const { fromUserId, toUserId, fromBookId, toBookId, message } = req.body;
     
-    if (!fromUserId || !toUserId || !fromBookId || !toBookId) {
+    // fromBookId can be null for "any of my books" offers
+    if (!fromUserId || !toUserId || toBookId === undefined || toBookId === null) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
     
@@ -653,7 +654,7 @@ app.post('/api/trades', async (req, res) => {
       tradeId: tradeId,
       fromUserId,
       toUserId,
-      fromBookId,
+      fromBookId: fromBookId || null, // Allow null for "any of my books"
       toBookId,
       message: message || '',
       status: 'pending',
@@ -782,6 +783,7 @@ app.get('/api/trades/debug', async (req, res) => {
 app.put('/api/trades/:tradeId/accept', authenticateToken, async (req, res) => {
   try {
     const tradeId = req.params.tradeId;
+    const { fromBookId } = req.body; // Optional: selected book when trade has "any of my books"
     const trade = await db.getTrade(tradeId);
     
     if (!trade) {
@@ -796,10 +798,23 @@ app.put('/api/trades/:tradeId/accept', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Trade is not pending' });
     }
     
-    const updatedTrade = await db.updateTrade(tradeId, { 
+    // If trade has null fromBookId (any of my books), require fromBookId in request
+    if (!trade.fromBookId && !fromBookId) {
+      return res.status(400).json({ error: 'Please select which book you want from the other user' });
+    }
+    
+    // Prepare update object
+    const updates = {
       status: 'accepted',
       acceptedAt: new Date().toISOString()
-    });
+    };
+    
+    // If fromBookId was null and user selected a book, update it
+    if (!trade.fromBookId && fromBookId) {
+      updates.fromBookId = fromBookId;
+    }
+    
+    const updatedTrade = await db.updateTrade(tradeId, updates);
     res.json({
       ...updatedTrade,
       id: updatedTrade.tradeId // Map tradeId to id for frontend compatibility

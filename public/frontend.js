@@ -399,8 +399,9 @@ async function openTradeModal(bookId, toUserId) {
         <div class="trade-book-author">${escapeHtml(book.author)}</div>
     `;
 
-    // Populate select with user's current books only
-    bookSelect.innerHTML = '<option value="">Select your book...</option>' + 
+    // Populate select with user's current books only, plus "any of my books" option
+    bookSelect.innerHTML = '<option value="">Select your book...</option>' +
+        '<option value="any">Any of my books</option>' +
         currentBooks.map(b => 
             `<option value="${b.id}">${escapeHtml(b.title)} by ${escapeHtml(b.author)}</option>`
         ).join('');
@@ -416,15 +417,24 @@ async function openTradeModal(bookId, toUserId) {
     // Update your book display when selection changes
     freshSelect.addEventListener('change', function() {
         const selectedBookId = this.value;
-        const selectedBook = currentBooks.find(b => b.id === selectedBookId);
-        if (selectedBook) {
+        if (selectedBookId === 'any') {
             yourBookDisplay.innerHTML = `
-                <img src="${selectedBook.imageUrl}" alt="${selectedBook.title}" class="trade-book-image">
-                <div class="trade-book-title">${escapeHtml(selectedBook.title)}</div>
-                <div class="trade-book-author">${escapeHtml(selectedBook.author)}</div>
+                <div class="trade-book-placeholder">
+                    <div class="trade-book-title" style="font-style: italic; color: #666;">Any of my books</div>
+                    <div class="trade-book-author" style="font-size: 12px; color: #999;">The other user will select which book they want</div>
+                </div>
             `;
         } else {
-            yourBookDisplay.innerHTML = '';
+            const selectedBook = currentBooks.find(b => b.id === selectedBookId);
+            if (selectedBook) {
+                yourBookDisplay.innerHTML = `
+                    <img src="${selectedBook.imageUrl}" alt="${selectedBook.title}" class="trade-book-image">
+                    <div class="trade-book-title">${escapeHtml(selectedBook.title)}</div>
+                    <div class="trade-book-author">${escapeHtml(selectedBook.author)}</div>
+                `;
+            } else {
+                yourBookDisplay.innerHTML = '';
+            }
         }
     });
 
@@ -438,12 +448,12 @@ async function openTradeModal(bookId, toUserId) {
 }
 
 async function submitTrade(toBookId, toUserId) {
-    const fromBookId = document.getElementById('myBookSelect').value;
+    const fromBookIdValue = document.getElementById('myBookSelect').value;
     const message = document.getElementById('tradeMessage').value;
     const submitBtn = document.getElementById('submitTradeBtn');
     const successMessage = document.getElementById('tradeSuccessMessage');
 
-    if (!fromBookId) {
+    if (!fromBookIdValue) {
         alert('Please select a book to trade');
         return;
     }
@@ -453,6 +463,9 @@ async function submitTrade(toBookId, toUserId) {
     submitBtn.textContent = 'Sending...';
 
     try {
+        // Send null for "any of my books", otherwise send the book ID
+        const fromBookId = fromBookIdValue === 'any' ? null : fromBookIdValue;
+        
         const response = await fetch(`${API_BASE}/trades`, {
             method: 'POST',
             headers: {
