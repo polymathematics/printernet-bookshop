@@ -330,19 +330,35 @@ window.acceptTrade = acceptTrade;
 window.declineTrade = declineTrade;
 window.showTradeHistory = showTradeHistory;
 
-async function acceptTrade(tradeId) {
+async function acceptTrade(tradeId, bookSelectId = null) {
+    // If bookSelectId is provided, get the selected book
+    let selectedBookId = null;
+    if (bookSelectId) {
+        const selectElement = document.getElementById(bookSelectId);
+        if (selectElement) {
+            selectedBookId = selectElement.value;
+            if (!selectedBookId) {
+                alert('Please select which book you want from the other user');
+                return;
+            }
+        }
+    }
+    
     if (!confirm('Are you sure you want to accept this trade offer?')) {
         return;
     }
 
     try {
         const token = localStorage.getItem('token');
+        const requestBody = selectedBookId ? { fromBookId: selectedBookId } : {};
+        
         const response = await fetch(`${API_BASE}/trades/${tradeId}/accept`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
-            }
+            },
+            body: JSON.stringify(requestBody)
         });
 
         if (response.ok) {
@@ -736,31 +752,71 @@ async function renderReceivedOffers() {
     // Fetch book details for received trades
     const tradeCards = await Promise.all(receivedTrades.map(async (trade) => {
         try {
-            const [theirBookRes, myBookRes] = await Promise.all([
-                fetch(`${API_BASE}/books/${trade.fromBookId}`),
-                fetch(`${API_BASE}/books/${trade.toBookId}`)
-            ]);
+            const isAnyOfMyBooks = !trade.fromBookId;
             
-            const theirBook = theirBookRes.ok ? await theirBookRes.json() : null;
+            // Fetch their book only if it's specified (not "any of my books")
+            const theirBookRes = isAnyOfMyBooks ? null : await fetch(`${API_BASE}/books/${trade.fromBookId}`);
+            const theirBook = theirBookRes && theirBookRes.ok ? await theirBookRes.json() : null;
+            
+            // Always fetch my book (the book they want)
+            const myBookRes = await fetch(`${API_BASE}/books/${trade.toBookId}`);
             const myBook = myBookRes.ok ? await myBookRes.json() : null;
             
-            if (!myBook || !theirBook) return '';
+            if (!myBook) return '';
 
             // Get the sender's username
             const senderRes = await fetch(`${API_BASE}/users/${trade.fromUserId}`);
             const sender = senderRes.ok ? await senderRes.json() : { username: 'Unknown' };
+            
+            // If "any of my books", fetch sender's current books for selection
+            let senderBooks = [];
+            let bookSelectHtml = '';
+            if (isAnyOfMyBooks) {
+                const senderBooksRes = await fetch(`${API_BASE}/users/${trade.fromUserId}/books`);
+                if (senderBooksRes.ok) {
+                    senderBooks = await senderBooksRes.json();
+                    // Filter to only current books
+                    senderBooks = senderBooks.filter(book => {
+                        const bookStatus = book.status || 'current';
+                        return bookStatus === 'current';
+                    });
+                    
+                    if (senderBooks.length > 0) {
+                        bookSelectHtml = `
+                            <div style="margin-top: 12px;">
+                                <label for="bookSelect_${trade.id}" style="display: block; margin-bottom: 6px; font-size: 13px; font-weight: 500; color: var(--color-text-light);">
+                                    Select which book you want:
+                                </label>
+                                <select id="bookSelect_${trade.id}" class="book-select" style="width: 100%; padding: 8px; border: 1px solid var(--color-border); border-radius: var(--border-radius); font-size: 14px;">
+                                    <option value="">Choose a book...</option>
+                                    ${senderBooks.map(book => 
+                                        `<option value="${book.id}">${escapeHtml(book.title)} by ${escapeHtml(book.author)}</option>`
+                                    ).join('')}
+                                </select>
+                            </div>
+                        `;
+                    }
+                }
+            }
 
             return `
                 <div class="trade-offer-card">
                     <div class="trade-offer-books">
                         <div class="trade-offer-book">
-                            <img src="${theirBook.imageUrl}" alt="${theirBook.title}" class="trade-offer-image"
-                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22280%22%3E%3Crect fill=%22%23D2D2D7%22 width=%22200%22 height=%22280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2386868B%22 font-family=%22system-ui%22 font-size=%2214%22%3ENo Image%3C/text%3E%3C/svg%3E'">
-                            <div class="trade-offer-book-info">
-                                <div class="trade-offer-label">Their Book</div>
-                                <div class="trade-offer-title">${escapeHtml(theirBook.title)}</div>
-                                <div class="trade-offer-author">${escapeHtml(theirBook.author)}</div>
-                            </div>
+                            ${isAnyOfMyBooks ? `
+                                <div class="trade-offer-placeholder" style="min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--color-bg); border: 1px dashed var(--color-border); border-radius: var(--border-radius); padding: 20px;">
+                                    <div style="font-size: 16px; font-weight: 500; color: var(--color-text); margin-bottom: 8px;">Any of their books</div>
+                                    <div style="font-size: 12px; color: var(--color-text-light); text-align: center;">Select which book you want below</div>
+                                </div>
+                            ` : `
+                                <img src="${theirBook.imageUrl}" alt="${theirBook.title}" class="trade-offer-image"
+                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22280%22%3E%3Crect fill=%22%23D2D2D7%22 width=%22200%22 height=%22280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2386868B%22 font-family=%22system-ui%22 font-size=%2214%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                                <div class="trade-offer-book-info">
+                                    <div class="trade-offer-label">Their Book</div>
+                                    <div class="trade-offer-title">${escapeHtml(theirBook.title)}</div>
+                                    <div class="trade-offer-author">${escapeHtml(theirBook.author)}</div>
+                                </div>
+                            `}
                         </div>
                         <div class="trade-offer-arrow">⇄</div>
                         <div class="trade-offer-book">
@@ -774,10 +830,11 @@ async function renderReceivedOffers() {
                         </div>
                     </div>
                     ${trade.message ? `<div class="trade-offer-message">${escapeHtml(trade.message)}</div>` : ''}
+                    ${bookSelectHtml}
                     <div class="trade-offer-actions">
                         <div class="trade-offer-sender">From: ${escapeHtml(sender.username || 'Unknown')}</div>
                         <div style="display: flex; gap: 8px; margin-top: 8px;">
-                            <button class="btn-primary btn-small" onclick="acceptTrade('${trade.id}')">Accept</button>
+                            <button class="btn-primary btn-small" onclick="acceptTrade('${trade.id}', ${isAnyOfMyBooks ? `'bookSelect_${trade.id}'` : 'null'})">Accept</button>
                             <button class="btn-secondary btn-small" onclick="declineTrade('${trade.id}')">Decline</button>
                         </div>
                     </div>
