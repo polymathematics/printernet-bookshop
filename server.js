@@ -759,6 +759,35 @@ app.put('/api/trades/:tradeId/decline', authenticateToken, async (req, res) => {
   }
 });
 
+// Cancel a trade proposal (for the sender)
+app.put('/api/trades/:tradeId/cancel', authenticateToken, async (req, res) => {
+  try {
+    const tradeId = req.params.tradeId;
+    const trade = await db.getTrade(tradeId);
+    
+    if (!trade) {
+      return res.status(404).json({ error: 'Trade not found' });
+    }
+    
+    if (trade.fromUserId !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only cancel trades you sent' });
+    }
+    
+    if (trade.status !== 'pending') {
+      return res.status(400).json({ error: 'Only pending trades can be cancelled' });
+    }
+    
+    const updatedTrade = await db.updateTrade(tradeId, { status: 'cancelled' });
+    res.json({
+      ...updatedTrade,
+      id: updatedTrade.tradeId // Map tradeId to id for frontend compatibility
+    });
+  } catch (error) {
+    console.error('Error cancelling trade:', error);
+    res.status(500).json({ error: 'Failed to cancel trade' });
+  }
+});
+
 // Mark trade as mailed
 app.put('/api/trades/:tradeId/mark-mailed', authenticateToken, async (req, res) => {
   try {
