@@ -515,11 +515,13 @@ function updateUserInfo() {
     
     if (userNameEl) userNameEl.textContent = currentUserName || 'My Books';
     
-    // Only count current books (not previous)
+    // Only count current books (not previous) that are actually owned by the user
     if (bookCountEl) {
         const currentBooksCount = myBooks.filter(book => {
             const bookStatus = book.status || book.bookStatus || 'current';
-            return bookStatus === 'current';
+            const bookUserId = book.userId || book.user_id;
+            // Count books that are current and owned by the user
+            return bookStatus === 'current' && bookUserId === currentUserId;
         }).length;
         bookCountEl.textContent = currentBooksCount;
     }
@@ -647,7 +649,83 @@ async function loadMyBooks() {
 
     try {
         const response = await fetch(`${API_BASE}/users/${currentUserId}/books`);
-        myBooks = await response.json();
+        let books = await response.json();
+        
+        // Also fetch books that are no longer on their shelf (for "Previous Books" tab)
+        // These include:
+        // 1. Books they traded away (fromUserId === currentUserId in completed trades)
+        // 2. Books they received but are no longer owned by them (toUserId === currentUserId, but userId !== currentUserId)
+        try {
+            const tradesResponse = await fetch(`${API_BASE}/users/${currentUserId}/trades`);
+            if (tradesResponse.ok) {
+                const trades = await tradesResponse.json();
+                const completedTrades = trades.filter(trade => trade.status === 'completed');
+                
+                // Get unique book IDs from completed trades where user was the sender (books they traded away)
+                const tradedAwayBookIds = [...new Set(
+                    completedTrades
+                        .filter(trade => trade.fromUserId === currentUserId)
+                        .map(trade => trade.fromBookId)
+                        .filter(bookId => bookId) // Filter out null/undefined
+                )];
+                
+                // Get unique book IDs from completed trades where user was the receiver (books they received)
+                const receivedBookIds = [...new Set(
+                    completedTrades
+                        .filter(trade => trade.toUserId === currentUserId)
+                        .map(trade => trade.toBookId)
+                        .filter(bookId => bookId)
+                )];
+                
+                // Combine all book IDs that might be "previous" books
+                const allPreviousBookIds = [...new Set([...tradedAwayBookIds, ...receivedBookIds])];
+                
+                // Fetch these books and check if they're no longer on the user's shelf
+                // A book is "previous" if it was part of a completed trade involving the user,
+                // but is NOT currently owned by them (userId !== currentUserId)
+                if (allPreviousBookIds.length > 0) {
+                    const previousBooks = await Promise.all(
+                        allPreviousBookIds.map(async (bookId) => {
+                            try {
+                                const bookResponse = await fetch(`${API_BASE}/books/${bookId}`);
+                                if (bookResponse.ok) {
+                                    const book = await bookResponse.json();
+                                    const bookUserId = book.userId || book.user_id;
+                                    
+                                    // If the book is currently owned by the user, it's not a "previous" book
+                                    // (it should already be in the books list from the initial fetch)
+                                    // If it's not owned by the user, it's a "previous" book (was on their shelf, now isn't)
+                                    if (bookUserId !== currentUserId) {
+                                        return {
+                                            ...book,
+                                            id: book.id || book.bookId
+                                        };
+                                    }
+                                    
+                                    return null;
+                                }
+                            } catch (error) {
+                                console.warn(`Could not fetch book ${bookId}:`, error);
+                            }
+                            return null;
+                        })
+                    );
+                    
+                    // Add previous books that aren't already in the list
+                    const existingBookIds = new Set(books.map(b => b.id || b.bookId));
+                    previousBooks.forEach(book => {
+                        if (book && !existingBookIds.has(book.id || book.bookId)) {
+                            books.push(book);
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.warn('Could not load previous books:', error);
+            // Continue without previous books - not critical
+        }
+        
+        myBooks = books;
         updateUserInfo();
         renderMyBooks();
     } catch (error) {
@@ -1312,7 +1390,24 @@ function renderMyBooks() {
     // Filter books based on current filter
     const filteredBooks = myBooks.filter(book => {
         const bookStatus = book.status || book.bookStatus || 'current';
-        return bookStatus === currentBookFilter;
+        const bookUserId = book.userId || book.user_id;
+        
+        if (currentBookFilter === 'previous') {
+            // Show books that are no longer on the user's shelf:
+            // 1. Books with status 'previous' that are owned by the user (completed trades)
+            // 2. Books that were part of completed trades but are NOT currently owned by the user
+            //    (these were added via the trade history lookup above)
+            // If a book was relisted by the user, it will have status 'current' and userId === currentUserId,
+            // so it will NOT appear in previous books (correct behavior)
+            if (bookStatus === 'previous' && bookUserId === currentUserId) {
+                return true; // Book on their shelf but marked as previous (completed trade)
+            }
+            // Books not owned by the user (were on their shelf, now aren't)
+            return bookUserId !== currentUserId;
+        } else {
+            // For 'current', only show books with status 'current' that are owned by the user
+            return bookStatus === 'current' && bookUserId === currentUserId;
+        }
     });
 
     if (filteredBooks.length === 0) {
@@ -1326,7 +1421,9 @@ function renderMyBooks() {
     container.innerHTML = filteredBooks.map(book => {
         const bookId = book.id || book.bookId;
         const bookStatus = book.status || book.bookStatus || 'current';
-        const isPrevious = bookStatus === 'previous';
+        const bookUserId = book.userId || book.user_id;
+        // A book is "previous" if it has status 'previous' OR is not currently owned by the user
+        const isPrevious = bookStatus === 'previous' || bookUserId !== currentUserId;
         const clickHandler = isPrevious 
             ? `onclick="showTradeHistory('${bookId}')"` 
             : `onclick="openEditBookModal('${bookId}')"`;
