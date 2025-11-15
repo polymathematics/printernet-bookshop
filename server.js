@@ -523,6 +523,7 @@ app.post('/api/users/:userId/books', upload.single('image'), async (req, res) =>
       condition: condition || 'used',
       imageUrl: imageUrl,
       status: 'current', // 'current' or 'previous'
+      tradeCount: 0, // Number of successful trades this book has been part of
       createdAt: new Date().toISOString()
     };
     
@@ -575,7 +576,7 @@ app.put('/api/books/:bookId', authenticateToken, upload.single('image'), async (
       }
     }
     
-    // Update book (preserve status field)
+    // Update book (preserve status and tradeCount fields)
     const updatedBook = {
       ...existingBook,
       title: title || existingBook.title,
@@ -583,7 +584,8 @@ app.put('/api/books/:bookId', authenticateToken, upload.single('image'), async (
       description: description !== undefined ? description : existingBook.description,
       condition: condition || existingBook.condition,
       imageUrl: imageUrl,
-      status: existingBook.status || 'current' // Preserve existing status or default to 'current'
+      status: existingBook.status || 'current', // Preserve existing status or default to 'current'
+      tradeCount: existingBook.tradeCount || 0 // Preserve trade count
     };
     
     await db.createBook(updatedBook); // PutCommand updates if exists
@@ -970,15 +972,26 @@ app.put('/api/trades/:tradeId/mark-received', authenticateToken, async (req, res
       updates.status = 'completed';
       
       // Mark both books as 'previous' since the trade is complete
+      // Also increment their tradeCount
       try {
         const fromBook = await db.getBook(trade.fromBookId);
         const toBook = await db.getBook(trade.toBookId);
         
         if (fromBook) {
-          await db.createBook({ ...fromBook, status: 'previous' });
+          const currentTradeCount = fromBook.tradeCount || 0;
+          await db.createBook({ 
+            ...fromBook, 
+            status: 'previous',
+            tradeCount: currentTradeCount + 1
+          });
         }
         if (toBook) {
-          await db.createBook({ ...toBook, status: 'previous' });
+          const currentTradeCount = toBook.tradeCount || 0;
+          await db.createBook({ 
+            ...toBook, 
+            status: 'previous',
+            tradeCount: currentTradeCount + 1
+          });
         }
       } catch (error) {
         console.error('Error updating book status to previous:', error);
@@ -994,6 +1007,61 @@ app.put('/api/trades/:tradeId/mark-received', authenticateToken, async (req, res
   } catch (error) {
     console.error('Error marking book as received:', error);
     res.status(500).json({ error: 'Failed to mark book as received' });
+  }
+});
+
+// Relist a book from a completed trade
+app.put('/api/trades/:tradeId/relist-book', authenticateToken, async (req, res) => {
+  try {
+    const tradeId = req.params.tradeId;
+    const trade = await db.getTrade(tradeId);
+    
+    if (!trade) {
+      return res.status(404).json({ error: 'Trade not found' });
+    }
+    
+    // Verify trade is completed
+    if (trade.status !== 'completed') {
+      return res.status(400).json({ error: 'Only completed trades can have books relisted' });
+    }
+    
+    // Verify user is part of the trade
+    const isSender = trade.fromUserId === req.user.userId;
+    const isReceiver = trade.toUserId === req.user.userId;
+    
+    if (!isSender && !isReceiver) {
+      return res.status(403).json({ error: 'You can only relist books from your own trades' });
+    }
+    
+    // Determine which book the user received
+    // If user is sender, they received toBookId
+    // If user is receiver, they received fromBookId
+    const receivedBookId = isSender ? trade.toBookId : trade.fromBookId;
+    
+    // Get the book
+    const book = await db.getBook(receivedBookId);
+    if (!book) {
+      return res.status(404).json({ error: 'Book not found' });
+    }
+    
+    // Update book: set status to 'current' and userId to current user
+    // Keep the same bookId and tradeCount to maintain provenance
+    const relistedBook = {
+      ...book,
+      status: 'current',
+      userId: req.user.userId,
+      tradeCount: book.tradeCount || 0 // Preserve trade count
+    };
+    
+    await db.createBook(relistedBook);
+    
+    res.json({
+      ...relistedBook,
+      id: relistedBook.bookId // Map bookId to id for frontend compatibility
+    });
+  } catch (error) {
+    console.error('Error relisting book:', error);
+    res.status(500).json({ error: 'Failed to relist book' });
   }
 });
 

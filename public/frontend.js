@@ -165,16 +165,19 @@ async function loadFeed() {
             
             // Mark books that are part of trades in progress
             allBooks = allBooks.map(book => {
+                const bookStatus = book.status || 'current';
+                const isPrevious = bookStatus === 'previous';
+                
+                // Only mark as tradeInProgress if:
+                // 1. Book has status 'previous', OR
+                // 2. Book is in an active (not completed) trade where both books have been mailed
+                // For completed trades, we only check the book's status (if it's been relisted, status will be 'current')
                 const tradeInProgress = allTrades.some(trade => 
-                    (trade.status === 'accepted' || trade.status === 'completed') &&
+                    trade.status === 'accepted' && // Only check accepted trades, not completed ones
                     trade.fromUserMailed && 
                     trade.toUserMailed &&
                     (trade.fromBookId === book.id || trade.toBookId === book.id)
                 );
-                
-                // Also mark books with status 'previous' as traded
-                const bookStatus = book.status || 'current';
-                const isPrevious = bookStatus === 'previous';
                 
                 return { 
                     ...book, 
@@ -245,16 +248,19 @@ async function loadUserBooks(userId) {
                 
                 // Mark books that are part of trades in progress
                 userBooks = userBooks.map(book => {
+                    const bookStatus = book.status || 'current';
+                    const isPrevious = bookStatus === 'previous';
+                    
+                    // Only mark as tradeInProgress if:
+                    // 1. Book has status 'previous', OR
+                    // 2. Book is in an active (not completed) trade where both books have been mailed
+                    // For completed trades, we only check the book's status (if it's been relisted, status will be 'current')
                     const tradeInProgress = viewedUserTrades.some(trade => 
-                        (trade.status === 'accepted' || trade.status === 'completed') &&
+                        trade.status === 'accepted' && // Only check accepted trades, not completed ones
                         trade.fromUserMailed && 
                         trade.toUserMailed &&
                         (trade.fromBookId === book.id || trade.toBookId === book.id)
                     );
-                    
-                    // Also mark books with status 'previous' as traded
-                    const bookStatus = book.status || 'current';
-                    const isPrevious = bookStatus === 'previous';
                     
                     return { 
                         ...book, 
@@ -298,9 +304,21 @@ function renderBooks(books, containerId, isMyBooks = false) {
         const cursorStyle = canClick ? 'cursor: pointer;' : (isTraded ? 'cursor: not-allowed;' : '');
         const cardClass = isTraded ? 'book-card trade-in-progress' : 'book-card';
         
+        const tradeCount = Number(book.tradeCount) || 0; // Ensure it's a number
+        const showExchangeSticker = tradeCount > 0 && !isTraded;
+        
         return `
         <div class="${cardClass}" data-book-id="${book.id}" ${clickHandler} style="${cursorStyle}">
             ${isTraded ? '<div class="trade-in-progress-badge">traded</div>' : ''}
+            ${showExchangeSticker ? `
+                <div class="exchange-sticker">
+                    <div class="exchange-sticker-burst">
+                        <div class="exchange-sticker-text">
+                            Exchanged ${tradeCount} ${tradeCount === 1 ? 'time' : 'times'}<br>via Printernet!
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
             <img src="${book.imageUrl}" alt="${book.title}" class="book-image" 
                  onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22280%22%3E%3Crect fill=%22%23D2D2D7%22 width=%22200%22 height=%22280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2386868B%22 font-family=%22system-ui%22 font-size=%2214%22%3ENo Image%3C/text%3E%3C/svg%3E'">
             <div class="book-info">
