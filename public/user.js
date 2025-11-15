@@ -966,6 +966,7 @@ async function renderAcceptedTrades() {
 
             const canMail = isSender ? !fromUserMailed : !toUserMailed;
             const canMarkReceived = isSender ? toUserMailed && !fromUserReceived : fromUserMailed && !toUserReceived;
+            const isCompleted = trade.status === 'completed' && fromUserReceived && toUserReceived;
 
             return `
                 <div class="trade-offer-card">
@@ -1001,6 +1002,9 @@ async function renderAcceptedTrades() {
                             ${canMarkReceived ? `
                                 <button class="btn-primary btn-small" onclick="markBookArrived('${trade.id || trade.tradeId}')">My book arrived!</button>
                             ` : ''}
+                            ${isCompleted ? `
+                                <button class="btn-primary btn-small" onclick="relistBook('${trade.id || trade.tradeId}')">Reintroduce this book to the bookshop</button>
+                            ` : ''}
                         </div>
                     </div>
                 </div>
@@ -1014,9 +1018,41 @@ async function renderAcceptedTrades() {
     container.innerHTML = tradeCards.filter(card => card).join('');
 }
 
+async function relistBook(tradeId) {
+    if (!confirm('Reintroduce this book to the bookshop? It will appear on your shelf as an active book and retain its full trade history.')) {
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE}/trades/${tradeId}/relist-book`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            const relistedBook = await response.json();
+            alert('Book reintroduced to the bookshop! It will now appear on your shelf.');
+            // Reload trades and books to reflect the change
+            loadTrades();
+            loadMyBooks();
+        } else {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to relist book');
+        }
+    } catch (error) {
+        console.error('Error relisting book:', error);
+        alert(error.message || 'Failed to relist book. Please try again.');
+    }
+}
+
 // Make functions available globally
 window.showShippingAddress = showShippingAddress;
 window.markAsMailed = markAsMailed;
+window.relistBook = relistBook;
 window.markBookArrived = markBookArrived;
 
 let currentShippingTradeId = null;
