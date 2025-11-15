@@ -15,8 +15,18 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeApp() {
     // Check if user is logged in
     if (currentUserId && currentUserName) {
-        showFeed();
-        loadFeed();
+        // Check for URL parameters to show a specific user's shelf
+        const urlParams = new URLSearchParams(window.location.search);
+        const viewUserId = urlParams.get('userId');
+        const viewUserName = urlParams.get('userName');
+        
+        if (viewUserId && viewUserName) {
+            // Show the specified user's shelf
+            showUserView(viewUserId, decodeURIComponent(viewUserName));
+        } else {
+            showFeed();
+            loadFeed();
+        }
         
         // Play login sound only if flag is set (user just logged in)
         if (localStorage.getItem('playLoginSound') === 'true') {

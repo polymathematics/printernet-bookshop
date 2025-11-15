@@ -328,6 +328,7 @@ async function handleEditBook(e) {
 window.openEditBookModal = openEditBookModal;
 window.acceptTrade = acceptTrade;
 window.declineTrade = declineTrade;
+window.cancelTrade = cancelTrade;
 window.showTradeHistory = showTradeHistory;
 
 async function acceptTrade(tradeId, bookSelectId = null) {
@@ -400,6 +401,34 @@ async function declineTrade(tradeId) {
     } catch (error) {
         console.error('Error declining trade:', error);
         alert(error.message || 'Failed to decline trade. Please try again.');
+    }
+}
+
+async function cancelTrade(tradeId) {
+    if (!confirm('Are you sure you want to cancel this trade offer?')) {
+        return;
+    }
+
+    try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_BASE}/trades/${tradeId}/cancel`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            alert('Trade offer cancelled');
+            loadTrades();
+        } else {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to cancel trade');
+        }
+    } catch (error) {
+        console.error('Error cancelling trade:', error);
+        alert(error.message || 'Failed to cancel trade. Please try again.');
     }
 }
 
@@ -689,18 +718,21 @@ async function renderSentOffers() {
     // Fetch book details for sent trades
     const tradeCards = await Promise.all(sentTrades.map(async (trade) => {
         try {
-            const [myBookRes, theirBookRes] = await Promise.all([
-                fetch(`${API_BASE}/books/${trade.fromBookId}`),
-                fetch(`${API_BASE}/books/${trade.toBookId}`)
-            ]);
+            const isAnyOfMyBooks = !trade.fromBookId;
             
-            const myBook = myBookRes.ok ? await myBookRes.json() : null;
+            // Fetch my book only if it's specified (not "any of my books")
+            const myBookRes = isAnyOfMyBooks ? null : await fetch(`${API_BASE}/books/${trade.fromBookId}`);
+            const myBook = myBookRes && myBookRes.ok ? await myBookRes.json() : null;
+            
+            // Always fetch their book (the book they want)
+            const theirBookRes = await fetch(`${API_BASE}/books/${trade.toBookId}`);
             const theirBook = theirBookRes.ok ? await theirBookRes.json() : null;
             
-            if (!myBook || !theirBook) return '';
+            if (!theirBook) return '';
 
-            const theirBookId = theirBook.id || theirBook.bookId;
-            const myBookId = myBook.id || myBook.bookId;
+            // Get the receiver's username
+            const receiverRes = await fetch(`${API_BASE}/users/${trade.toUserId}`);
+            const receiver = receiverRes.ok ? await receiverRes.json() : { username: 'Unknown' };
 
             return `
                 <div class="trade-offer-card">
@@ -716,17 +748,30 @@ async function renderSentOffers() {
                         </div>
                         <div class="trade-offer-arrow">⇄</div>
                         <div class="trade-offer-book">
-                            <img src="${myBook.imageUrl}" alt="${myBook.title}" class="trade-offer-image"
-                                 onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22280%22%3E%3Crect fill=%22%23D2D2D7%22 width=%22200%22 height=%22280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2386868B%22 font-family=%22system-ui%22 font-size=%2214%22%3ENo Image%3C/text%3E%3C/svg%3E'">
-                            <div class="trade-offer-book-info">
-                                <div class="trade-offer-label">Your Book</div>
-                                <div class="trade-offer-title">${escapeHtml(myBook.title)}</div>
-                                <div class="trade-offer-author">${escapeHtml(myBook.author)}</div>
-                            </div>
+                            ${isAnyOfMyBooks ? `
+                                <div class="trade-offer-placeholder" style="min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--color-bg); border: 1px dashed var(--color-border); border-radius: var(--border-radius); padding: 20px;">
+                                    <div style="font-size: 16px; font-weight: 500; color: var(--color-text); margin-bottom: 8px;">Any of my books</div>
+                                    <div style="font-size: 12px; color: var(--color-text-light); text-align: center;">They will select which book they want</div>
+                                </div>
+                            ` : `
+                                <img src="${myBook.imageUrl}" alt="${myBook.title}" class="trade-offer-image"
+                                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22200%22 height=%22280%22%3E%3Crect fill=%22%23D2D2D7%22 width=%22200%22 height=%22280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2386868B%22 font-family=%22system-ui%22 font-size=%2214%22%3ENo Image%3C/text%3E%3C/svg%3E'">
+                                <div class="trade-offer-book-info">
+                                    <div class="trade-offer-label">Your Book</div>
+                                    <div class="trade-offer-title">${escapeHtml(myBook.title)}</div>
+                                    <div class="trade-offer-author">${escapeHtml(myBook.author)}</div>
+                                </div>
+                            `}
                         </div>
                     </div>
                     ${trade.message ? `<div class="trade-offer-message">${escapeHtml(trade.message)}</div>` : ''}
-                    <div class="trade-offer-status">Status: Pending</div>
+                    <div class="trade-offer-actions">
+                        <div class="trade-offer-sender">To: ${escapeHtml(receiver.username || 'Unknown')}</div>
+                        <div class="trade-offer-status" style="margin-top: 8px;">Status: Pending</div>
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <button class="btn-secondary btn-small" onclick="cancelTrade('${trade.id}')">Cancel Offer</button>
+                        </div>
+                    </div>
                 </div>
             `;
         } catch (error) {
@@ -1096,35 +1141,87 @@ async function showTradeHistory(bookId) {
             return;
         }
 
-        // Sort by date (most recent first) and get the most recent completed trade
+        // Sort by date (oldest first, like a library card)
         completedTrades.sort((a, b) => {
             const dateA = a.acceptedAt || a.createdAt || '';
             const dateB = b.acceptedAt || b.createdAt || '';
-            return new Date(dateB) - new Date(dateA);
+            return new Date(dateA) - new Date(dateB);
         });
-        const trade = completedTrades[0];
-        const otherUserId = trade.fromUserId === currentUserId ? trade.toUserId : trade.fromUserId;
-        
-        // Get the other user's information
-        const userResponse = await fetch(`${API_BASE}/users/${otherUserId}`);
-        const otherUser = userResponse.ok ? await userResponse.json() : { username: 'Unknown' };
-        
-        // Format the date (use acceptedAt if available, otherwise createdAt)
-        const dateToUse = trade.acceptedAt || trade.createdAt;
-        const tradeDate = dateToUse ? new Date(dateToUse).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        }) : 'Unknown date';
+
+        // Fetch user info for all trades
+        const tradeEntries = await Promise.all(completedTrades.map(async (trade) => {
+            const otherUserId = trade.fromUserId === currentUserId ? trade.toUserId : trade.fromUserId;
+            const userResponse = await fetch(`${API_BASE}/users/${otherUserId}`);
+            const otherUser = userResponse.ok ? await userResponse.json() : { username: 'Unknown' };
+            
+            // Format the date (use acceptedAt if available, otherwise createdAt)
+            const dateToUse = trade.acceptedAt || trade.createdAt;
+            const tradeDate = dateToUse ? new Date(dateToUse) : null;
+            
+            // Format date like library stamps: "OCT 16 1980" or "MAR 9 1987"
+            let formattedDate = 'Unknown date';
+            if (tradeDate) {
+                const month = tradeDate.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+                const day = tradeDate.getDate();
+                const year = tradeDate.getFullYear();
+                formattedDate = `${month} ${day} ${year}`;
+            }
+            
+            return {
+                date: formattedDate,
+                dateObj: tradeDate,
+                otherUser: otherUser.username || 'Unknown',
+                otherUserId: otherUserId,
+                currentUser: currentUserName || 'You',
+                currentUserId: currentUserId
+            };
+        }));
+
+        // Build the library card HTML with clickable user names
+        const cardRows = tradeEntries.map((entry, index) => {
+            const isEven = index % 2 === 0;
+            const rowClass = isEven ? 'library-card-row' : 'library-card-row library-card-row-alt';
+            return `
+                <div class="${rowClass}">
+                    <div class="library-card-date">${escapeHtml(entry.date)}</div>
+                    <div class="library-card-participants">
+                        <a href="index.html?userId=${entry.currentUserId}&userName=${encodeURIComponent(entry.currentUser)}" class="library-card-user-link">${escapeHtml(entry.currentUser)}</a>
+                        <span class="library-card-separator">↔</span>
+                        <a href="index.html?userId=${entry.otherUserId}&userName=${encodeURIComponent(entry.otherUser)}" class="library-card-user-link">${escapeHtml(entry.otherUser)}</a>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Add blank rows to make the card taller (like a real library card)
+        // Always show at least 10 rows total (filled + blank)
+        const minRows = 10;
+        const blankRowCount = Math.max(0, minRows - tradeEntries.length);
+        const blankRows = Array(blankRowCount).fill(0).map((_, index) => {
+            const rowIndex = tradeEntries.length + index;
+            const isEven = rowIndex % 2 === 0;
+            const rowClass = isEven ? 'library-card-row library-card-row-blank' : 'library-card-row library-card-row-alt library-card-row-blank';
+            return `
+                <div class="${rowClass}">
+                    <div class="library-card-date"></div>
+                    <div class="library-card-participants"></div>
+                </div>
+            `;
+        }).join('');
 
         content.innerHTML = `
-            <div style="padding: var(--spacing-md); background-color: var(--color-bg); border-radius: var(--border-radius);">
-                <p style="font-size: 16px; margin-bottom: var(--spacing-sm);">
-                    <strong>Traded with ${escapeHtml(otherUser.username || 'Unknown')}</strong>
-                </p>
-                <p style="color: var(--color-text-light); font-size: 14px;">
-                    on ${tradeDate}
-                </p>
+            <div class="library-card-container">
+                <div class="library-card-header">
+                    <p class="library-card-instruction">This book is a proud part of The Printernet Bookshop. Below is its provenance.</p>
+                </div>
+                <div class="library-card-table">
+                    <div class="library-card-table-header">
+                        <div class="library-card-date-header">DATE</div>
+                        <div class="library-card-participants-header">PARTICIPANTS</div>
+                    </div>
+                    ${cardRows}
+                    ${blankRows}
+                </div>
             </div>
         `;
     } catch (error) {

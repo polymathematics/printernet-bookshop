@@ -1115,3 +1115,142 @@ h1 {
     }
 }
 
+/* Vintage Library Card Styles */
+.library-card-modal {
+    max-width: 600px;
+    padding: var(--spacing-lg);
+}
+
+.library-card-container {
+    background: #FFF8DC;
+    background: linear-gradient(to bottom, #FFFEF5 0%, #FFF8DC 100%);
+    border: 2px solid #D4A574;
+    border-radius: 8px;
+    padding: var(--spacing-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    font-family: 'Courier New', 'Times New Roman', serif;
+    position: relative;
+    min-height: 500px;
+}
+
+.library-card-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: 
+        repeating-linear-gradient(
+            0deg,
+            transparent,
+            transparent 23px,
+            rgba(0, 0, 0, 0.03) 23px,
+            rgba(0, 0, 0, 0.03) 24px
+        );
+    pointer-events: none;
+    border-radius: 6px;
+}
+
+.library-card-header {
+    margin-bottom: var(--spacing-md);
+    padding-bottom: var(--spacing-sm);
+    border-bottom: 2px solid #8B7355;
+}
+
+.library-card-instruction {
+    font-size: 11px;
+    line-height: 1.4;
+    color: #2C2416;
+    margin: 0;
+    text-align: left;
+    font-weight: 400;
+}
+
+.library-card-table {
+    background: #FFFFFF;
+    border: 1px solid #8B7355;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.library-card-table-header {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    background: #E8DCC6;
+    border-bottom: 2px solid #8B7355;
+    font-weight: 700;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #2C2416;
+}
+
+.library-card-date-header,
+.library-card-participants-header {
+    padding: 8px 12px;
+    border-right: 1px solid #8B7355;
+}
+
+.library-card-participants-header {
+    border-right: none;
+}
+
+.library-card-row {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    border-bottom: 1px solid #D4A574;
+    min-height: 32px;
+    background: rgba(255, 255, 255, 0.5);
+}
+
+.library-card-row-alt {
+    background: rgba(248, 245, 240, 0.8);
+}
+
+.library-card-row:last-child {
+    border-bottom: none;
+}
+
+.library-card-date {
+    padding: 8px 12px;
+    border-right: 1px solid #D4A574;
+    font-size: 12px;
+    font-weight: 600;
+    color: #1E3A8A;
+    font-family: 'Courier New', monospace;
+    display: flex;
+    align-items: center;
+}
+
+.library-card-participants {
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #2C2416;
+    display: flex;
+    align-items: center;
+    font-family: 'Courier New', monospace;
+    gap: 8px;
+}
+
+.library-card-separator {
+    color: #8B7355;
+    font-weight: 400;
+}
+
+.library-card-user-link {
+    color: #1E3A8A;
+    text-decoration: underline;
+    cursor: pointer;
+    transition: color 0.2s ease;
+}
+
+.library-card-user-link:hover {
+    color: #3B82F6;
+    text-decoration: underline;
+}
+
+.library-card-row-blank {
+    opacity: 0.3;
+}
+
