@@ -1250,17 +1250,77 @@ async function showTradeHistory(bookId) {
             (trade.fromBookId === actualBookId || trade.toBookId === actualBookId)
         );
 
-        if (completedTrades.length === 0) {
-            content.innerHTML = '<p style="color: var(--color-text-light); font-style: italic;">No trade history found for this book.</p>';
-            return;
+        // Determine the original introducer from the book's originallyListedBy attribute
+        // Fallback to inferring from trade history for existing books that don't have this attribute
+        let originalIntroducer = null;
+        let originalIntroducerId = book.originallyListedBy || null;
+        
+        // If book doesn't have originallyListedBy, infer from trade history (for backward compatibility)
+        if (!originalIntroducerId) {
+            if (completedTrades.length > 0) {
+                // Sort by date (oldest first, like a library card)
+                completedTrades.sort((a, b) => {
+                    const dateA = a.acceptedAt || a.createdAt || '';
+                    const dateB = b.acceptedAt || b.createdAt || '';
+                    return new Date(dateA) - new Date(dateB);
+                });
+                
+                const firstTrade = completedTrades[0];
+                // The original introducer is the sender of the first trade
+                originalIntroducerId = firstTrade.fromUserId;
+            } else {
+                // If no trades, the current owner is the original introducer
+                originalIntroducerId = book.userId || book.user_id;
+            }
+        } else {
+            // Sort trades by date if we have them (needed for display below)
+            if (completedTrades.length > 0) {
+                completedTrades.sort((a, b) => {
+                    const dateA = a.acceptedAt || a.createdAt || '';
+                    const dateB = b.acceptedAt || b.createdAt || '';
+                    return new Date(dateA) - new Date(dateB);
+                });
+            }
+        }
+        
+        // Fetch the original introducer's info
+        if (originalIntroducerId) {
+            try {
+                const originalUserResponse = await fetch(`${API_BASE}/users/${originalIntroducerId}`);
+                if (originalUserResponse.ok) {
+                    const originalUser = await originalUserResponse.json();
+                    originalIntroducer = originalUser.username || 'Unknown';
+                }
+            } catch (error) {
+                console.warn('Could not fetch original introducer:', error);
+            }
         }
 
-        // Sort by date (oldest first, like a library card)
-        completedTrades.sort((a, b) => {
-            const dateA = a.acceptedAt || a.createdAt || '';
-            const dateB = b.acceptedAt || b.createdAt || '';
-            return new Date(dateA) - new Date(dateB);
-        });
+        if (completedTrades.length === 0) {
+            // Show the card even if there are no trades, just with the original introducer info
+            const originalIntroducerText = originalIntroducer && originalIntroducerId
+                ? `<a href="index.html?userId=${originalIntroducerId}&userName=${encodeURIComponent(originalIntroducer)}" class="library-card-user-link">${escapeHtml(originalIntroducer)}</a>`
+                : 'Unknown';
+            
+            content.innerHTML = `
+                <div class="library-card-container">
+                    <div class="library-card-header">
+                        <p class="library-card-instruction">This book is a proud part of The Printernet Bookshop. Originally introduced by ${originalIntroducerText}. Below is its provenance.</p>
+                    </div>
+                    <div class="library-card-table">
+                        <div class="library-card-table-header">
+                            <div class="library-card-date-header">DATE</div>
+                            <div class="library-card-participants-header">PARTICIPANTS</div>
+                        </div>
+                        <div class="library-card-row">
+                            <div class="library-card-date"></div>
+                            <div class="library-card-participants" style="font-style: italic; color: var(--color-text-light);">No trades yet</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return;
+        }
 
         // Fetch user info for all trades
         const tradeEntries = await Promise.all(completedTrades.map(async (trade) => {
@@ -1323,10 +1383,15 @@ async function showTradeHistory(bookId) {
             `;
         }).join('');
 
+        // Build the original introducer text with link
+        const originalIntroducerText = originalIntroducer && originalIntroducerId
+            ? `<a href="index.html?userId=${originalIntroducerId}&userName=${encodeURIComponent(originalIntroducer)}" class="library-card-user-link">${escapeHtml(originalIntroducer)}</a>`
+            : 'Unknown';
+
         content.innerHTML = `
             <div class="library-card-container">
                 <div class="library-card-header">
-                    <p class="library-card-instruction">This book is a proud part of The Printernet Bookshop. Below is its provenance.</p>
+                    <p class="library-card-instruction">This book is a proud part of The Printernet Bookshop. Originally introduced by ${originalIntroducerText}. Below is its provenance.</p>
                 </div>
                 <div class="library-card-table">
                     <div class="library-card-table-header">

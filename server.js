@@ -524,6 +524,7 @@ app.post('/api/users/:userId/books', upload.single('image'), async (req, res) =>
       imageUrl: imageUrl,
       status: 'current', // 'current' or 'previous'
       tradeCount: 0, // Number of successful trades this book has been part of
+      originallyListedBy: userId, // Track who originally introduced this book to the bookshop
       createdAt: new Date().toISOString()
     };
     
@@ -576,7 +577,7 @@ app.put('/api/books/:bookId', authenticateToken, upload.single('image'), async (
       }
     }
     
-    // Update book (preserve status and tradeCount fields)
+    // Update book (preserve status, tradeCount, and originallyListedBy fields)
     const updatedBook = {
       ...existingBook,
       title: title || existingBook.title,
@@ -585,7 +586,8 @@ app.put('/api/books/:bookId', authenticateToken, upload.single('image'), async (
       condition: condition || existingBook.condition,
       imageUrl: imageUrl,
       status: existingBook.status || 'current', // Preserve existing status or default to 'current'
-      tradeCount: existingBook.tradeCount || 0 // Preserve trade count
+      tradeCount: existingBook.tradeCount || 0, // Preserve trade count
+      originallyListedBy: existingBook.originallyListedBy || existingBook.userId // Preserve original introducer
     };
     
     await db.createBook(updatedBook); // PutCommand updates if exists
@@ -982,7 +984,8 @@ app.put('/api/trades/:tradeId/mark-received', authenticateToken, async (req, res
           await db.createBook({ 
             ...fromBook, 
             status: 'previous',
-            tradeCount: currentTradeCount + 1
+            tradeCount: currentTradeCount + 1,
+            originallyListedBy: fromBook.originallyListedBy || fromBook.userId // Preserve original introducer
           });
         }
         if (toBook) {
@@ -990,7 +993,8 @@ app.put('/api/trades/:tradeId/mark-received', authenticateToken, async (req, res
           await db.createBook({ 
             ...toBook, 
             status: 'previous',
-            tradeCount: currentTradeCount + 1
+            tradeCount: currentTradeCount + 1,
+            originallyListedBy: toBook.originallyListedBy || toBook.userId // Preserve original introducer
           });
         }
       } catch (error) {
@@ -1045,12 +1049,13 @@ app.put('/api/trades/:tradeId/relist-book', authenticateToken, async (req, res) 
     }
     
     // Update book: set status to 'current' and userId to current user
-    // Keep the same bookId and tradeCount to maintain provenance
+    // Keep the same bookId, tradeCount, and originallyListedBy to maintain provenance
     const relistedBook = {
       ...book,
       status: 'current',
       userId: req.user.userId,
-      tradeCount: book.tradeCount || 0 // Preserve trade count
+      tradeCount: book.tradeCount || 0, // Preserve trade count
+      originallyListedBy: book.originallyListedBy || book.userId // Preserve original introducer
     };
     
     await db.createBook(relistedBook);
